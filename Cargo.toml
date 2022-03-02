@@ -29,10 +29,10 @@ test = false
 bench = false
 
 [profile.dev]
-opt-level = 1
+opt-level = "s"
 codegen-units = 16
 debug = true
-lto = false
+lto = true
 
 [profile.release]
 opt-level = "s"   # optimize for size
