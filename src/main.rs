@@ -16,6 +16,9 @@ use stm32f1xx_hal::prelude::*;
 use systick_monotonic::{fugit::Duration, Systick};
 
 //mod test_imu;
+mod error;
+mod parameter;
+mod state_machine;
 
 type Mpu = Mpu6050<
     stm32f1xx_hal::i2c::BlockingI2c<
@@ -92,7 +95,8 @@ mod app {
         let mut delay = Delay::new(cx.core.SYST, clocks);
 
         let mut sensor =
-            mpu6050_dmp::sensor::Mpu6050::new(i2c, mpu6050_dmp::address::Address::default()).unwrap();
+            mpu6050_dmp::sensor::Mpu6050::new(i2c, mpu6050_dmp::address::Address::default())
+                .unwrap();
 
         sensor.initialize_dmp(&mut delay).unwrap();
 
