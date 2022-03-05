@@ -22,7 +22,7 @@ snafu = { version = "0.7.0", features = [
 ], default-features = false }
 
 [dependencies.stm32f1xx-hal]
-version = "0.8.0"
+version = "0.9.0"
 features = ["rt", "stm32f103", "medium"]
 
 # this lets you use `cargo fix`!

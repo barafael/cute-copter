@@ -6,7 +6,6 @@ use mpu6050_dmp::sensor::Mpu6050;
 use panic_rtt_target as _;
 use rtic::app;
 use rtt_target::{rprintln, rtt_init_print};
-use stm32f1xx_hal::delay::Delay;
 use stm32f1xx_hal::gpio::CRL;
 use stm32f1xx_hal::gpio::{gpioc::PC13, Output, PinState, PushPull};
 use stm32f1xx_hal::gpio::{Alternate, OpenDrain};
@@ -61,9 +60,8 @@ mod app {
 
         let clocks = rcc
             .cfgr
-            .use_hse(8.mhz())
-            .sysclk(36.mhz())
-            .pclk1(36.mhz())
+            .sysclk(48.MHz())
+            .pclk1(24.MHz())
             .freeze(&mut flash.acr);
 
         // Setup LED
@@ -82,7 +80,7 @@ mod app {
             (scl, sda),
             &mut afio.mapr,
             Mode::Fast {
-                frequency: 400_000.hz(),
+                frequency: 400_000.Hz(),
                 duty_cycle: DutyCycle::Ratio16to9,
             },
             clocks,
@@ -92,7 +90,7 @@ mod app {
             1000,
         );
 
-        let mut delay = Delay::new(cx.core.SYST, clocks);
+        let mut delay = cx.core.SYST.delay(&clocks);
 
         let mut sensor =
             mpu6050_dmp::sensor::Mpu6050::new(i2c, mpu6050_dmp::address::Address::default())
@@ -100,7 +98,7 @@ mod app {
 
         sensor.initialize_dmp(&mut delay).unwrap();
 
-        let syst = delay.free();
+        let syst = delay.release().release();
 
         let mono = Systick::new(syst, 36_000_000);
 
@@ -137,7 +135,7 @@ mod app {
             if len >= 28 {
                 let mut buf = [0; 28];
                 let buf = sensor.read_fifo(&mut buf).unwrap();
-                let quat = mpu6050_dmp::quaternion::Quaternion::from_bytes(&buf).unwrap();
+                let quat = mpu6050_dmp::quaternion::Quaternion::from_bytes(buf).unwrap();
                 let ypr = YawPitchRoll::from(quat);
                 rprintln!("{:?}", ypr);
             }
