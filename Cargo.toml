@@ -20,6 +20,10 @@ mpu6050-dmp = "0.2.0"
 snafu = { version = "0.7.0", features = [
     "rust_1_46",
 ], default-features = false }
+#cute-copter-config-proto = { path = "../cute-copter-config-proto" }
+cute-copter-config-proto = { git = "https://github.com/barafael/cute-copter-config-proto" }
+postcard = "0.7.3"
+heapless = "0.7.10"
 
 [dependencies.stm32f1xx-hal]
 version = "0.9.0"

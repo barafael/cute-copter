@@ -1,11 +1,14 @@
 #![deny(unsafe_code)]
 #![no_main]
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
+use cute_copter_config_proto::configuration::Config;
 use mpu6050_dmp::sensor::Mpu6050;
 use panic_rtt_target as _;
 use rtic::app;
 use rtt_target::{rprintln, rtt_init_print};
+use state_machine::{Armed, Copter, Disarmed};
+use stm32f1xx_hal::flash::FlashWriter;
 use stm32f1xx_hal::gpio::CRL;
 use stm32f1xx_hal::gpio::{gpioc::PC13, Output, PinState, PushPull};
 use stm32f1xx_hal::gpio::{Alternate, OpenDrain};
@@ -16,7 +19,6 @@ use systick_monotonic::{fugit::Duration, Systick};
 
 //mod test_imu;
 mod error;
-mod parameter;
 mod state_machine;
 
 type Mpu = Mpu6050<
@@ -43,6 +45,7 @@ mod app {
     struct Local {
         led: PC13<Output<PushPull>>,
         state: bool,
+        flash: stm32f1xx_hal::flash::Parts,
     }
 
     #[monotonic(binds = SysTick, default = true)]
@@ -104,13 +107,35 @@ mod app {
 
         // Schedule the blinking task
         blink::spawn_after(Duration::<u64, 1, 1000>::from_ticks(1000)).unwrap();
-        attitude::spawn_after(Duration::<u64, 1, 1000>::from_ticks(1000)).unwrap();
+        //print_attitude::spawn_after(Duration::<u64, 1, 1000>::from_ticks(1000)).unwrap();
 
         (
             Shared { mpu: sensor },
-            Local { led, state: false },
+            Local {
+                led,
+                state: false,
+                flash,
+            },
             init::Monotonics(mono),
         )
+    }
+
+    #[idle(local = [flash])]
+    fn idle(cx: idle::Context) -> ! {
+        let mut writer = cx.local.flash.writer(
+            stm32f1xx_hal::flash::SectorSize::Sz1K,
+            stm32f1xx_hal::flash::FlashSize::Sz128K,
+        );
+        let config = { state_machine::load_from_flash(&mut writer).unwrap_or_default() };
+        let mut copter = Copter::from_config(config);
+        loop {
+            let armed = copter.arm(&mut writer).unwrap();
+            rprintln!("{:?}", armed);
+            copter = armed.disarm().unwrap();
+            loop {
+                continue;
+            }
+        }
     }
 
     #[task(local = [led, state])]
@@ -127,20 +152,21 @@ mod app {
     }
 
     #[task(shared = [mpu])]
-    fn attitude(mut cx: attitude::Context) {
+    fn print_attitude(mut cx: print_attitude::Context) {
         rprintln!("attitude");
         cx.shared.mpu.lock(|sensor| {
             // get roll and pitch estimate
             let len = sensor.get_fifo_count().unwrap();
             if len >= 28 {
                 let mut buf = [0; 28];
-                let buf = sensor.read_fifo(&mut buf).unwrap();
+                let buf = sensor.read_fifo(&mut buf[..16]).unwrap();
+
                 let quat = mpu6050_dmp::quaternion::Quaternion::from_bytes(buf).unwrap();
                 let ypr = YawPitchRoll::from(quat);
-                rprintln!("{:?}", ypr);
+                rprintln!("{:.5}, {:.5}, {:.5}", ypr.yaw, ypr.pitch, ypr.roll);
             }
         });
 
-        attitude::spawn_after(Duration::<u64, 1, 1000>::from_ticks(1000)).unwrap();
+        print_attitude::spawn_after(Duration::<u64, 1, 1000>::from_ticks(10)).unwrap();
     }
 }
