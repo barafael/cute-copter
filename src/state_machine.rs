@@ -1,6 +1,6 @@
 use crate::error::Error;
 use core::marker::PhantomData;
-use cute_copter_config_proto::{configuration::Config, parameter::Write};
+use cute_copter_config_proto::{configuration::Config, parameter::ConfigurationCommand};
 use heapless::Vec;
 use postcard::{from_bytes, to_vec};
 use stm32f1xx_hal::flash::FlashWriter;
@@ -32,14 +32,14 @@ impl Copter<Disarmed> {
         }
     }
 
-    pub fn write(&mut self, write: Write) -> Result<(), Error> {
-        match write {
-            Write::RollProportional(value) => todo!(),
+    pub fn set_parameter(&mut self, param: ConfigurationCommand) -> Result<(), Error> {
+        match param {
+            ConfigurationCommand::RollProportional(value) => todo!(),
             _ => todo!(),
         }
     }
 
-    pub fn read(&self, write: Write) -> Result<Write, Error> {
+    pub fn read(&self, write: ConfigurationCommand) -> Result<ConfigurationCommand, Error> {
         todo!()
     }
 

@@ -34,16 +34,16 @@ type Mpu = Mpu6050<
 #[app(device = stm32f1xx_hal::pac, peripherals = true, dispatchers = [SPI1])]
 mod app {
     use super::*;
-    use mpu6050_dmp::yaw_pitch_roll::YawPitchRoll;
+    use mpu6050_dmp::{address::Address, quaternion::Quaternion, yaw_pitch_roll::YawPitchRoll};
 
     #[shared]
     struct Shared {
         mpu: Mpu,
+        led: PC13<Output<PushPull>>,
     }
 
     #[local]
     struct Local {
-        led: PC13<Output<PushPull>>,
         state: bool,
         flash: stm32f1xx_hal::flash::Parts,
     }
@@ -63,8 +63,8 @@ mod app {
 
         let clocks = rcc
             .cfgr
-            .sysclk(48.MHz())
-            .pclk1(24.MHz())
+            .sysclk(72.MHz())
+            .pclk1(48.MHz())
             .freeze(&mut flash.acr);
 
         // Setup LED
@@ -95,9 +95,7 @@ mod app {
 
         let mut delay = cx.core.SYST.delay(&clocks);
 
-        let mut sensor =
-            mpu6050_dmp::sensor::Mpu6050::new(i2c, mpu6050_dmp::address::Address::default())
-                .unwrap();
+        let mut sensor = Mpu6050::new(i2c, Address::default()).unwrap();
 
         sensor.initialize_dmp(&mut delay).unwrap();
 
@@ -105,14 +103,12 @@ mod app {
 
         let mono = Systick::new(syst, 36_000_000);
 
-        // Schedule the blinking task
-        blink::spawn_after(Duration::<u64, 1, 1000>::from_ticks(1000)).unwrap();
-        //print_attitude::spawn_after(Duration::<u64, 1, 1000>::from_ticks(1000)).unwrap();
+        //blink::spawn_after(Duration::<u64, 1, 1000>::from_ticks(1000)).unwrap();
+        //print_attitude::spawn().unwrap();
 
         (
-            Shared { mpu: sensor },
+            Shared { mpu: sensor, led },
             Local {
-                led,
                 state: false,
                 flash,
             },
@@ -120,14 +116,32 @@ mod app {
         )
     }
 
-    #[idle(local = [flash])]
-    fn idle(cx: idle::Context) -> ! {
+    #[idle(local = [flash], shared = [led, mpu])]
+    fn idle(mut cx: idle::Context) -> ! {
         let mut writer = cx.local.flash.writer(
             stm32f1xx_hal::flash::SectorSize::Sz1K,
             stm32f1xx_hal::flash::FlashSize::Sz128K,
         );
         let config = { state_machine::load_from_flash(&mut writer).unwrap_or_default() };
         let mut copter = Copter::from_config(config);
+        loop {
+            cx.shared.mpu.lock(|sensor| {
+                let len = sensor.get_fifo_count().unwrap();
+                if len >= 28 {
+                    cx.shared.led.lock(|led| led.toggle());
+                    let mut buf = [0; 28];
+                    let buf = sensor.read_fifo(&mut buf[..16]).unwrap();
+
+                    let quat = Quaternion::from_bytes(buf).unwrap();
+                    let ypr = YawPitchRoll::from(quat);
+                    rprintln!("{:.5}, {:.5}, {:.5}", ypr.yaw, ypr.pitch, ypr.roll);
+                    for _ in 0..100000 {
+                        continue;
+                    }
+                }
+            })
+        }
+
         loop {
             let armed = copter.arm(&mut writer).unwrap();
             rprintln!("{:?}", armed);
@@ -138,32 +152,35 @@ mod app {
         }
     }
 
-    #[task(local = [led, state])]
-    fn blink(cx: blink::Context) {
+    #[task(local = [state], shared = [led])]
+    fn blink(mut cx: blink::Context) {
         rprintln!("blink");
         if *cx.local.state {
-            cx.local.led.set_high();
+            cx.shared.led.lock(|led| led.set_high());
             *cx.local.state = false;
         } else {
-            cx.local.led.set_low();
+            cx.shared.led.lock(|led| led.set_low());
             *cx.local.state = true;
         }
         blink::spawn_after(Duration::<u64, 1, 1000>::from_ticks(1000)).unwrap();
     }
 
-    #[task(shared = [mpu])]
+    #[task(shared = [mpu, led])]
     fn print_attitude(mut cx: print_attitude::Context) {
-        rprintln!("attitude");
         cx.shared.mpu.lock(|sensor| {
             // get roll and pitch estimate
-            let len = sensor.get_fifo_count().unwrap();
-            if len >= 28 {
-                let mut buf = [0; 28];
-                let buf = sensor.read_fifo(&mut buf[..16]).unwrap();
+            loop {
+                cx.shared.led.lock(|led| led.toggle());
+                let len = sensor.get_fifo_count().unwrap();
+                if len >= 28 {
+                    let mut buf = [0; 28];
+                    let buf = sensor.read_fifo(&mut buf[..16]).unwrap();
 
-                let quat = mpu6050_dmp::quaternion::Quaternion::from_bytes(buf).unwrap();
-                let ypr = YawPitchRoll::from(quat);
-                rprintln!("{:.5}, {:.5}, {:.5}", ypr.yaw, ypr.pitch, ypr.roll);
+                    let quat = Quaternion::from_bytes(buf).unwrap();
+                    let ypr = YawPitchRoll::from(quat);
+                    rprintln!("{:.5}, {:.5}, {:.5}", ypr.yaw, ypr.pitch, ypr.roll);
+                    break;
+                }
             }
         });
 
