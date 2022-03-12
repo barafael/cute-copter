@@ -122,30 +122,15 @@ mod app {
             stm32f1xx_hal::flash::SectorSize::Sz1K,
             stm32f1xx_hal::flash::FlashSize::Sz128K,
         );
+
         let config = { state_machine::load_from_flash(&mut writer).unwrap_or_default() };
-        let mut copter = Copter::from_config(config);
-        loop {
-            cx.shared.mpu.lock(|sensor| {
-                let len = sensor.get_fifo_count().unwrap();
-                if len >= 28 {
-                    cx.shared.led.lock(|led| led.toggle());
-                    let mut buf = [0; 28];
-                    let buf = sensor.read_fifo(&mut buf[..16]).unwrap();
-
-                    let quat = Quaternion::from_bytes(buf).unwrap();
-                    let ypr = YawPitchRoll::from(quat);
-                    rprintln!("{:.5}, {:.5}, {:.5}", ypr.yaw, ypr.pitch, ypr.roll);
-                    for _ in 0..100000 {
-                        continue;
-                    }
-                }
-            })
-        }
+        //let mut copter = Copter::from_config(config);
+        rprintln!("{:?}", config);
 
         loop {
-            let armed = copter.arm(&mut writer).unwrap();
-            rprintln!("{:?}", armed);
-            copter = armed.disarm().unwrap();
+            //let armed = copter.arm(&mut writer).unwrap();
+            //rprintln!("{:?}", armed);
+            //copter = armed.disarm().unwrap();
             loop {
                 continue;
             }
@@ -174,9 +159,9 @@ mod app {
                 let len = sensor.get_fifo_count().unwrap();
                 if len >= 28 {
                     let mut buf = [0; 28];
-                    let buf = sensor.read_fifo(&mut buf[..16]).unwrap();
+                    let buf = sensor.read_fifo(&mut buf).unwrap();
 
-                    let quat = Quaternion::from_bytes(buf).unwrap();
+                    let quat = Quaternion::from_bytes(&buf[..16]).unwrap();
                     let ypr = YawPitchRoll::from(quat);
                     rprintln!("{:.5}, {:.5}, {:.5}", ypr.yaw, ypr.pitch, ypr.roll);
                     break;
