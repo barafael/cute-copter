@@ -8,6 +8,7 @@ use nrf24_rs::Nrf24l01;
 use panic_rtt_target as _;
 use rtt_target::{rprintln, rtt_init_print};
 use state_machine::Copter;
+use stm32f1xx_hal::flash::{FlashSize, SectorSize};
 use stm32f1xx_hal::gpio::PinState;
 use stm32f1xx_hal::i2c::{BlockingI2c, DutyCycle, Mode};
 use stm32f1xx_hal::pac;
@@ -23,7 +24,7 @@ use stm32f1xx_hal::spi::Mode as SpiMode;
 use stm32f1xx_hal::spi::Spi;
 
 pub const MODE: SpiMode = nrf24_rs::SPI_MODE;
-const MESSAGE: &[u8] = b"Here's a message!";
+const MESSAGE: &[u8; 17] = b"Here's a message!";
 
 #[entry]
 fn main() -> ! {
@@ -43,17 +44,21 @@ fn main() -> ! {
         .pclk1(48.MHz())
         .freeze(&mut flash.acr);
 
-    // Setup LED
+    let mut delay = cp.SYST.delay(&clocks);
+
+    let mut gpioa = dp.GPIOA.split();
+    let mut gpiob = dp.GPIOB.split();
     let mut gpioc = dp.GPIOC.split();
+
+    // Setup LED
     let mut led = gpioc
         .pc13
         .into_push_pull_output_with_state(&mut gpioc.crh, PinState::Low);
 
-    let mut gpiob = dp.GPIOB.split();
+    // Setup i2c
     let scl = gpiob.pb6.into_alternate_open_drain(&mut gpiob.crl);
     let sda = gpiob.pb7.into_alternate_open_drain(&mut gpiob.crl);
 
-    // Setup i2c
     let i2c = BlockingI2c::i2c1(
         dp.I2C1,
         (scl, sda),
@@ -69,21 +74,22 @@ fn main() -> ! {
         1000,
     );
 
-    let mut delay = cp.SYST.delay(&clocks);
-
+    // Setup MPU6050 with DMP
     let mut sensor = Mpu6050::new(i2c, Address::default()).unwrap();
 
     sensor.initialize_dmp(&mut delay).unwrap();
 
-    let mut writer = flash.writer(
-        stm32f1xx_hal::flash::SectorSize::Sz1K,
-        stm32f1xx_hal::flash::FlashSize::Sz128K,
-    );
+    // Setup flash
+    let mut writer = flash.writer(SectorSize::Sz1K, FlashSize::Sz128K);
+
+    // Setup config
     let config = { state_machine::load_from_flash(&mut writer).unwrap_or_default() };
     let mut _copter = Copter::from_config(config);
 
+    // Setup PID controller
     let mut controller = pid_loop::PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
 
+    // Setup SPI
     let sck = gpiob.pb13.into_alternate_push_pull(&mut gpiob.crh);
     let miso = gpiob.pb14;
     let mosi = gpiob.pb15.into_alternate_push_pull(&mut gpiob.crh);
@@ -91,23 +97,25 @@ fn main() -> ! {
 
     let spi = Spi::spi2(dp.SPI2, (sck, miso, mosi), MODE, 1.MHz(), clocks);
 
+    // Setup NRF radio
     let config = NrfConfig::default()
         .channel(8)
-        .pa_level(PALevel::Min)
+        .pa_level(PALevel::Low)
+        .ack_payloads_enabled(true)
         // We will use a payload size the size of our message
         .payload_size(PayloadSize::Static(MESSAGE.len() as u8));
 
-    let mut gpioa = dp.GPIOA.split();
     let chip_enable = gpioa.pa11.into_push_pull_output(&mut gpioa.crh);
 
-    // Initialize the chip
     let mut nrf = Nrf24l01::new(spi, chip_enable, cs, &mut delay, config).unwrap();
     if !nrf.is_connected().unwrap() {
         panic!("Chip is not connected.");
     }
 
     nrf.open_reading_pipe(DataPipe::DP0, b"Node1").unwrap();
+    nrf.start_listening().unwrap();
 
+    rprintln!("Starting copter loop");
     loop {
         led.set_low();
         while sensor.get_fifo_count().unwrap() < 28 {
@@ -124,11 +132,12 @@ fn main() -> ! {
         rprintln!("{:.5}, {:.5}, {:.5}", ypr.yaw, ypr.pitch, ypr.roll);
 
         if nrf.data_available().unwrap() {
+            led.set_high();
             let mut buffer = [0; MESSAGE.len()];
             nrf.read(&mut buffer).unwrap();
             rprintln!("{:?}", buffer);
         }
-        led.toggle();
+        delay.delay_ms(1u32);
 
         let desired: (f32, f32, f32) = { (0.0, 0.0, 0.0) };
 
