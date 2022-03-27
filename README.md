@@ -22,3 +22,8 @@ STM32F103 LQFP-48
 
 # Flash
 PID parameters and so on are stored on last page of flash (page 127) and loaded on startup, stored on arming the drone.
+
+# Pin Designations
+These were reverse engineered with a multimeter, oscilloscope and a crystal ball, so no guarantees. Work in progress, too.
+
+![pinout](https://user-images.githubusercontent.com/6966738/160289087-fc01bbdb-5217-4dc9-8e0f-29099763dc0a.png)
