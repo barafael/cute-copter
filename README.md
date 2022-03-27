@@ -27,5 +27,6 @@ PID parameters and so on are stored on last page of flash (page 127) and loaded 
 
 # Pin Designations
 These were reverse engineered with a multimeter, oscilloscope and a crystal ball, so no guarantees. Work in progress, too.
+NRF radio and MPU6050 are confirmed working with this pinout, motors probably too (but can't test rn due to being stupid and blowing up drone control board power supply).
 
 ![image](https://user-images.githubusercontent.com/6966738/160289131-38dee0a0-e433-4212-8979-465aec81422b.png)
