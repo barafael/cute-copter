@@ -2,6 +2,8 @@
 
 A little whimsy copter based on a PCB frame, not at all premium components. Can we make it fly with Rust?
 
+I'm also working on the transmitter for this copter here: https://github.com/barafael/cute-copter-remote
+
 # Hardware
 
 https://de.aliexpress.com/item/4001108687090.html?gatewayAdapt=glo2deu&spm=a2g0o.order_list.0.0.21ef5c5f4uzTWV
