@@ -22,6 +22,7 @@ use cortex_m_rt::entry;
 use mpu6050_dmp::{address::Address, quaternion::Quaternion, yaw_pitch_roll::YawPitchRoll};
 use stm32f1xx_hal::spi::Mode as SpiMode;
 use stm32f1xx_hal::spi::Spi;
+use stm32f1xx_hal::timer::{Channel, Tim2NoRemap, Tim2PartialRemap2, Tim3PartialRemap};
 
 pub const MODE: SpiMode = nrf24_rs::SPI_MODE;
 const MESSAGE: &[u8; 17] = b"Here's a message!";
@@ -114,6 +115,31 @@ fn main() -> ! {
 
     nrf.open_reading_pipe(DataPipe::DP0, b"Node1").unwrap();
     nrf.start_listening().unwrap();
+
+    // Setup PWM outputs for motors
+    let c0 = gpioa.pa0.into_alternate_push_pull(&mut gpioa.crl);
+    let c1 = gpioa.pa1.into_alternate_push_pull(&mut gpioa.crl);
+    let c2 = gpioa.pa2.into_alternate_push_pull(&mut gpioa.crl);
+    let c3 = gpioa.pa3.into_alternate_push_pull(&mut gpioa.crl);
+
+    let pins = (c0, c1, c2, c3);
+
+    let mut pwm = dp
+        .TIM2
+        .pwm_hz::<Tim2NoRemap, _, _>(pins, &mut afio.mapr, 1.kHz(), &clocks);
+
+    // Enable clock on each of the channels
+    pwm.enable(Channel::C1);
+    pwm.enable(Channel::C2);
+    pwm.enable(Channel::C3);
+    pwm.enable(Channel::C4);
+
+    let max = pwm.get_max_duty();
+
+    pwm.set_duty(Channel::C1, max / 5);
+    pwm.set_duty(Channel::C2, max / 5);
+    pwm.set_duty(Channel::C3, max / 5);
+    pwm.set_duty(Channel::C4, max / 5);
 
     rprintln!("Starting copter loop");
     loop {
