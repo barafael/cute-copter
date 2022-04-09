@@ -2,6 +2,8 @@
 #![no_main]
 #![cfg_attr(not(test), no_std)]
 
+use mpu6050_dmp::accel::AccelFullScale;
+use mpu6050_dmp::gyro::GyroFullScale;
 use mpu6050_dmp::sensor::Mpu6050;
 use nrf24_rs::config::{DataPipe, NrfConfig, PALevel, PayloadSize};
 use nrf24_rs::Nrf24l01;
@@ -22,7 +24,7 @@ use cortex_m_rt::entry;
 use mpu6050_dmp::{address::Address, quaternion::Quaternion, yaw_pitch_roll::YawPitchRoll};
 use stm32f1xx_hal::spi::Mode as SpiMode;
 use stm32f1xx_hal::spi::Spi;
-use stm32f1xx_hal::timer::{Channel, Tim2NoRemap, Tim2PartialRemap2, Tim3PartialRemap};
+use stm32f1xx_hal::timer::{Channel, Tim2NoRemap};
 
 pub const MODE: SpiMode = nrf24_rs::SPI_MODE;
 const MESSAGE: &[u8; 17] = b"Here's a message!";
@@ -76,9 +78,16 @@ fn main() -> ! {
     );
 
     // Setup MPU6050 with DMP
-    let mut sensor = Mpu6050::new(i2c, Address::default()).unwrap();
+    let mut imu = Mpu6050::new(i2c, Address::default()).unwrap();
 
-    sensor.initialize_dmp(&mut delay).unwrap();
+    imu.set_gyro_full_scale(GyroFullScale::Deg2000).unwrap();
+    imu.set_accel_full_scale(AccelFullScale::G16).unwrap();
+
+    imu.initialize_dmp(&mut delay).unwrap();
+
+    // Note: additionally, wait about 15 seconds after turn on while not moving the sensor for self-calibration.
+
+    imu.calibrate_accel(128, &mut delay).unwrap();
 
     // Setup flash
     let mut writer = flash.writer(SectorSize::Sz1K, FlashSize::Sz128K);
@@ -88,7 +97,8 @@ fn main() -> ! {
     let mut _copter = Copter::from_config(config);
 
     // Setup PID controller
-    let mut controller = pid_loop::PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
+    let mut orientation_controller_roll = pid_loop::PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
+    let mut rate_controller_roll = pid_loop::PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
 
     // Setup SPI
     let sck = gpiob.pb13.into_alternate_push_pull(&mut gpiob.crh);
@@ -144,18 +154,30 @@ fn main() -> ! {
     rprintln!("Starting copter loop");
     loop {
         led.set_low();
-        while sensor.get_fifo_count().unwrap() < 28 {
+        while imu.get_fifo_count().unwrap() < 28 {
             continue;
         }
         let ypr = {
             let mut buf = [0; 28];
-            let buf = sensor.read_fifo(&mut buf).unwrap();
+            let buf = imu.read_fifo(&mut buf).unwrap();
 
             let quat = Quaternion::from_bytes(&buf[..16]).unwrap();
             YawPitchRoll::from(quat)
         };
         led.toggle();
-        rprintln!("{:.5}, {:.5}, {:.5}", ypr.yaw, ypr.pitch, ypr.roll);
+        //rprintln!("{:.5}, {:.5}, {:.5}", ypr.yaw, ypr.pitch, ypr.roll);
+        let rates = imu.gyro().unwrap();
+        //rprintln!("{:?}", rates);
+
+        let desired: (f32, f32, f32) = { (0.0, 0.0, 0.0) };
+
+        let desired_roll_rate = orientation_controller_roll.next(desired.2, ypr.roll);
+
+        let actual_roll_rate = rates.x();
+        rprintln!("actual roll rate: {}", actual_roll_rate);
+
+        let roll_rate_correction = rate_controller_roll.next(desired_roll_rate, actual_roll_rate);
+        //rprintln!("{}", roll_rate_correction);
 
         if nrf.data_available().unwrap() {
             led.set_high();
@@ -163,11 +185,6 @@ fn main() -> ! {
             nrf.read(&mut buffer).unwrap();
             rprintln!("{:?}", buffer);
         }
-        delay.delay_ms(1u32);
-
-        let desired: (f32, f32, f32) = { (0.0, 0.0, 0.0) };
-
-        let _correction_yaw = controller.next(desired.0, ypr.yaw);
     }
 
     /*
