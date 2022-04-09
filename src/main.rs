@@ -83,11 +83,11 @@ fn main() -> ! {
     imu.set_gyro_full_scale(GyroFullScale::Deg2000).unwrap();
     imu.set_accel_full_scale(AccelFullScale::G16).unwrap();
 
-    imu.initialize_dmp(&mut delay).unwrap();
-
     // Note: additionally, wait about 15 seconds after turn on while not moving the sensor for self-calibration.
+    imu.calibrate_accel(255, &mut delay).unwrap();
+    imu.calibrate_gyro(255, &mut delay).unwrap();
 
-    imu.calibrate_accel(128, &mut delay).unwrap();
+    imu.initialize_dmp(&mut delay).unwrap();
 
     // Setup flash
     let mut writer = flash.writer(SectorSize::Sz1K, FlashSize::Sz128K);
@@ -96,9 +96,14 @@ fn main() -> ! {
     let config = { state_machine::load_from_flash(&mut writer).unwrap_or_default() };
     let mut _copter = Copter::from_config(config);
 
-    // Setup PID controller
+    // Setup PID controllers
     let mut orientation_controller_roll = pid_loop::PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
+    let mut orientation_controller_pitch = pid_loop::PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
+    let mut orientation_controller_yaw = pid_loop::PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
+
     let mut rate_controller_roll = pid_loop::PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
+    let mut rate_controller_pitch = pid_loop::PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
+    let mut rate_controller_yaw = pid_loop::PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
 
     // Setup SPI
     let sck = gpiob.pb13.into_alternate_push_pull(&mut gpiob.crh);
@@ -151,6 +156,29 @@ fn main() -> ! {
     pwm.set_duty(Channel::C3, max / 5);
     pwm.set_duty(Channel::C4, max / 5);
 
+    // Setup mixer variables.
+    let throttle = 0;
+
+    // Front right
+    let fr_roll = 0.25f32;
+    let fr_pitch = 0.25f32;
+    let fr_yaw = 0.25f32;
+
+    // Front left
+    let fl_roll = -0.25f32;
+    let fl_pitch = 0.25f32;
+    let fl_yaw = -0.25f32;
+
+    // Back right
+    let br_roll = 0.25f32;
+    let br_pitch = -0.25f32;
+    let br_yaw = -0.25f32;
+
+    // Back left
+    let bl_roll = -0.25f32;
+    let bl_pitch = -0.25f32;
+    let bl_yaw = 0.25f32;
+
     rprintln!("Starting copter loop");
     loop {
         led.set_low();
@@ -165,19 +193,42 @@ fn main() -> ! {
             YawPitchRoll::from(quat)
         };
         led.toggle();
-        //rprintln!("{:.5}, {:.5}, {:.5}", ypr.yaw, ypr.pitch, ypr.roll);
         let rates = imu.gyro().unwrap();
-        //rprintln!("{:?}", rates);
 
+        // TODO: get data from radio.
         let desired: (f32, f32, f32) = { (0.0, 0.0, 0.0) };
 
-        let desired_roll_rate = orientation_controller_roll.next(desired.2, ypr.roll);
+        // Roll rate correction.
+        let desired_roll_rate = orientation_controller_roll.next(desired.0, ypr.roll * 10.0);
+        rprintln!("{},    {}", ypr.roll * 10.0, desired_roll_rate);
 
         let actual_roll_rate = rates.x();
-        rprintln!("actual roll rate: {}", actual_roll_rate);
 
         let roll_rate_correction = rate_controller_roll.next(desired_roll_rate, actual_roll_rate);
-        //rprintln!("{}", roll_rate_correction);
+
+        // Pitch rate correction.
+        let desired_pitch_rate = orientation_controller_pitch.next(desired.1, ypr.pitch * 10.0);
+
+        let actual_pitch_rate = rates.y();
+
+        let pitch_rate_correction =
+            rate_controller_pitch.next(desired_pitch_rate, actual_pitch_rate);
+
+        // Yaw rate correction.
+        let desired_yaw_rate = orientation_controller_yaw.next(desired.2, ypr.yaw * 10.0);
+
+        let actual_yaw_rate = rates.z();
+
+        let yaw_rate_correction = rate_controller_yaw.next(desired_yaw_rate, actual_yaw_rate);
+
+        /*
+        rprintln!(
+            "{:.2}, {:.2}, {:.2}",
+            roll_rate_correction,
+            pitch_rate_correction,
+            yaw_rate_correction
+        );
+        */
 
         if nrf.data_available().unwrap() {
             led.set_high();
@@ -185,6 +236,31 @@ fn main() -> ! {
             nrf.read(&mut buffer).unwrap();
             rprintln!("{:?}", buffer);
         }
+
+        let _front_right = (throttle as f32
+            + fr_roll * roll_rate_correction
+            + fr_pitch * pitch_rate_correction
+            + fr_yaw * yaw_rate_correction) as u16;
+        let _front_left = (throttle as f32
+            + fl_roll * roll_rate_correction
+            + fl_pitch * pitch_rate_correction
+            + fl_yaw * yaw_rate_correction) as u16;
+        let _back_right = (throttle as f32
+            + br_roll * roll_rate_correction
+            + br_pitch * pitch_rate_correction
+            + br_yaw * yaw_rate_correction) as u16;
+        let _back_left = (throttle as f32
+            + bl_roll * roll_rate_correction
+            + bl_pitch * pitch_rate_correction
+            + bl_yaw * yaw_rate_correction) as u16;
+
+        // For now, assuming that the throttle variables are in 0.0..100.0.
+        /*
+        pwm.set_duty(Channel::C1, front_right);
+        pwm.set_duty(Channel::C2, front_left);
+        pwm.set_duty(Channel::C3, back_right);
+        pwm.set_duty(Channel::C4, back_left);
+        */
     }
 
     /*
