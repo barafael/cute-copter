@@ -16,9 +16,6 @@ nrf24-rs = "0.1.1"
 pid-loop = "0.0.6"
 mpu6050-dmp = { git = "https://github.com/barafael/mpu6050-dmp" }
 #mpu6050-dmp = { path = "../mpu6050-dmp" }
-snafu = { version = "0.7.0", features = [
-    "rust_1_46",
-], default-features = false }
 #cute-copter-config-proto = { path = "../cute-copter-config-proto" }
 cute-copter-config-proto = { git = "https://github.com/barafael/cute-copter-config-proto" }
 postcard = "0.7.3"

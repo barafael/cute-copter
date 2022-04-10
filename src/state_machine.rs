@@ -1,13 +1,12 @@
-use crate::error::Error;
 use core::marker::PhantomData;
-use cute_copter_config_proto::{configuration::Config, parameter::ConfigurationCommand};
+use cute_copter_config_proto::{command::SetParameter, configuration::Configuration, error::Error};
 use heapless::Vec;
 use postcard::{from_bytes, to_vec};
 use stm32f1xx_hal::flash::FlashWriter;
 
-pub fn load_from_flash(flash: &mut FlashWriter) -> Option<Config> {
+pub fn load_from_flash(flash: &mut FlashWriter) -> Option<Configuration> {
     let bytes = flash
-        .read(127 * 1024, core::mem::size_of::<Config>())
+        .read(127 * 1024, core::mem::size_of::<Configuration>())
         .unwrap();
     Some(from_bytes(bytes).unwrap())
 }
@@ -20,26 +19,26 @@ pub struct Armed;
 
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct Copter<State> {
-    config: Config,
+    config: Configuration,
     marker: PhantomData<State>,
 }
 
 impl Copter<Disarmed> {
-    pub fn from_config(config: Config) -> Self {
+    pub fn from_config(config: Configuration) -> Self {
         Self {
             config,
             marker: PhantomData::default(),
         }
     }
 
-    pub fn set_parameter(&mut self, param: ConfigurationCommand) -> Result<(), Error> {
+    pub fn set_parameter(&mut self, param: SetParameter) -> Result<(), Error> {
         match param {
-            ConfigurationCommand::RollProportional(value) => todo!(),
+            SetParameter::RollProportional(value) => todo!(),
             _ => todo!(),
         }
     }
 
-    pub fn read(&self, write: ConfigurationCommand) -> Result<ConfigurationCommand, Error> {
+    pub fn read(&self, write: SetParameter) -> Result<SetParameter, Error> {
         todo!()
     }
 

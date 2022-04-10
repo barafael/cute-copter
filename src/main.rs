@@ -2,12 +2,14 @@
 #![no_main]
 #![cfg_attr(not(test), no_std)]
 
+use cute_copter_config_proto::command::Interactive;
 use mpu6050_dmp::accel::AccelFullScale;
 use mpu6050_dmp::gyro::GyroFullScale;
 use mpu6050_dmp::sensor::Mpu6050;
 use nrf24_rs::config::{DataPipe, NrfConfig, PALevel, PayloadSize};
 use nrf24_rs::Nrf24l01;
 use panic_rtt_target as _;
+use postcard::from_bytes;
 use rtt_target::{rprintln, rtt_init_print};
 use state_machine::Copter;
 use stm32f1xx_hal::flash::{FlashSize, SectorSize};
@@ -17,7 +19,6 @@ use stm32f1xx_hal::pac;
 use stm32f1xx_hal::prelude::*;
 
 //mod test_imu;
-mod error;
 mod state_machine;
 
 use cortex_m_rt::entry;
@@ -200,7 +201,7 @@ fn main() -> ! {
 
         // Roll rate correction.
         let desired_roll_rate = orientation_controller_roll.next(desired.0, ypr.roll * 10.0);
-        rprintln!("{},    {}", ypr.roll * 10.0, desired_roll_rate);
+        //rprintln!("{},    {}", ypr.roll * 10.0, desired_roll_rate);
 
         let actual_roll_rate = rates.x();
 
@@ -232,9 +233,11 @@ fn main() -> ! {
 
         if nrf.data_available().unwrap() {
             led.set_high();
-            let mut buffer = [0; MESSAGE.len()];
+            // TODO why 17?
+            let mut buffer = [0; /*core::mem::size_of::<Interactive>()*/ 17];
             nrf.read(&mut buffer).unwrap();
-            rprintln!("{:?}", buffer);
+            let interactive: Interactive = from_bytes(&buffer).unwrap();
+            rprintln!("{:?}", interactive);
         }
 
         let _front_right = (throttle as f32
