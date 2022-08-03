@@ -32,8 +32,12 @@ NRF radio and MPU6050 are confirmed working with this pinout, motors probably to
 ![image](https://user-images.githubusercontent.com/6966738/160289131-38dee0a0-e433-4212-8979-465aec81422b.png)
 
 # Status
-- [ x ] IMU data
--  [ - ]
-- [ x ] Radio connection
-- [ x ] PWM for the motors
-- [ x GGG] Flash for persistence
+- [x] IMU data
+-  [x] Driver needs some love; soldered probes to the I2C pullups to check what data is being exchanged between MCU and IMU
+- [ ] Handle events and asynchronicity: RTIC, embassy, or anything better than the current blocking waiting main loop style. DMA and interrupts might just be enough.
+- [x] Radio connection
+-  [ ] DMA for radio packets
+ - [ ] Fully fleshed out but basic radio protocol
+- [x] PWM for the motors
+-  [ ] DMA for PWM (not really needed is it?]
+- [x] Flash for persistence
