@@ -30,3 +30,10 @@ These were reverse engineered with a multimeter, oscilloscope and a crystal ball
 NRF radio and MPU6050 are confirmed working with this pinout, motors probably too (but can't test rn due to being stupid and blowing up drone control board power supply).
 
 ![image](https://user-images.githubusercontent.com/6966738/160289131-38dee0a0-e433-4212-8979-465aec81422b.png)
+
+# Status
+- [ x ] IMU data
+-  [ - ]
+- [ x ] Radio connection
+- [ x ] PWM for the motors
+- [ x GGG] Flash for persistence
