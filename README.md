@@ -34,6 +34,7 @@ NRF radio and MPU6050 are confirmed working with this pinout, motors probably to
 # Status
 - [x] IMU data
 -  [x] Driver needs some love; soldered probes to the I2C pullups to check what data is being exchanged between MCU and IMU
+-  [x] Take a deep look at: https://github.com/MoebiusTech/Stm32f103rct6
 - [ ] Handle events and asynchronicity: RTIC, embassy, or anything better than the current blocking waiting main loop style. DMA and interrupts might just be enough.
 - [x] Radio connection
 -  [ ] DMA for radio packets
