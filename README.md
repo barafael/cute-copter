@@ -41,3 +41,8 @@ NRF radio and MPU6050 are confirmed working with this pinout, motors probably to
 - [x] PWM for the motors
 -  [ ] DMA for PWM (not really needed is it?]
 - [x] Flash for persistence
+
+# IMU Traces
+
+![image](https://user-images.githubusercontent.com/6966738/182554755-49569ae1-2900-46c3-8a50-de45c6bce58e.png)
+
