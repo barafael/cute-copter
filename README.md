@@ -6,7 +6,9 @@ I'm also working on the transmitter for this copter here: https://github.com/bar
 
 # Hardware
 
-https://de.aliexpress.com/item/4001108687090.html?gatewayAdapt=glo2deu&spm=a2g0o.order_list.0.0.21ef5c5f4uzTWV
+As of August 2022, the copter is not available on AliExpress. If you find this MoebiusTech product somewhere, please let me know!
+
+~~https://de.aliexpress.com/item/4001108687090.html?gatewayAdapt=glo2deu&spm=a2g0o.order_list.0.0.21ef5c5f4uzTWV~~
 
 # Controller
 
