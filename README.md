@@ -46,3 +46,4 @@ NRF radio and MPU6050 are confirmed working with this pinout, motors probably to
 
 ![image](https://user-images.githubusercontent.com/6966738/182554755-49569ae1-2900-46c3-8a50-de45c6bce58e.png)
 
+https://github.com/barafael/cute-copter/raw/main/imu-0.sal
