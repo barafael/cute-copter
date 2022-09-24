@@ -24,6 +24,21 @@ STM32F103 LQFP-48
 * csn: PB12
 * chip_enable: PA11
 
+# [TODO] UART
+
+By elimination, there could only be 2 UARTs active:
+
+* USART1 on (tx, rx): (PA9, PA10)
+* USART3 on (tx, rx): (PB10, PB11)
+
+Alternate pins for USART1 are PB7 and PB6 are already used for I2C1.
+
+USART2 and USART3 do not have alternate pins. 
+
+USART2 pins are PA2 and PA3 are already used by PWM pins.
+
+I don't know if there is an active UART on the remaining pins, need to measure. But wouldn't it be cool to see some logs at least?
+
 # Flash
 PID parameters and so on are stored on last page of flash (page 127) and loaded on startup, stored on arming the drone.
 
