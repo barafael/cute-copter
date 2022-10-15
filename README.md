@@ -48,7 +48,7 @@ PID parameters and so on are stored on last page of flash (page 127) and loaded 
 These were reverse engineered with a multimeter, oscilloscope and a crystal ball, so no guarantees. Work in progress, too.
 NRF radio and MPU6050 are confirmed working with this pinout, motors too.
 
-![image](https://user-images.githubusercontent.com/6966738/160289131-38dee0a0-e433-4212-8979-465aec81422b.png)
+![image](https://user-images.githubusercontent.com/6966738/195994577-16cb76ee-64b3-4423-8bd0-733fddfc836a.png)
 
 # Status
 - [x] IMU data
