@@ -8,9 +8,7 @@ use mpu6050_dmp::gyro::GyroFullScale;
 use mpu6050_dmp::sensor::Mpu6050;
 use nrf24_rs::config::{DataPipe, NrfConfig, PALevel, PayloadSize};
 use nrf24_rs::Nrf24l01;
-use panic_rtt_target as _;
 use postcard::from_bytes;
-use rtt_target::{rprintln, rtt_init_print};
 use state_machine::Copter;
 use stm32f1xx_hal::flash::{FlashSize, SectorSize};
 use stm32f1xx_hal::gpio::PinState;
@@ -27,6 +25,10 @@ use stm32f1xx_hal::spi::Mode as SpiMode;
 use stm32f1xx_hal::spi::Spi;
 use stm32f1xx_hal::timer::{Channel, Tim2NoRemap};
 
+use defmt_rtt as _; // global logger
+use panic_probe as _;
+use stm32f1xx_hal as _;
+
 pub const MODE: SpiMode = nrf24_rs::SPI_MODE;
 const MESSAGE: &[u8; 17] = b"Here's a message!";
 
@@ -39,8 +41,7 @@ fn main() -> ! {
     let rcc = dp.RCC.constrain();
     let mut afio = dp.AFIO.constrain();
 
-    rtt_init_print!();
-    rprintln!("init");
+    defmt::println!("init");
 
     let clocks = rcc
         .cfgr
@@ -55,9 +56,12 @@ fn main() -> ! {
     let mut gpioc = dp.GPIOC.split();
 
     // Setup LED
+    // TODO is PC13 connected?
+    /*
     let mut led = gpioc
         .pc13
         .into_push_pull_output_with_state(&mut gpioc.crh, PinState::Low);
+    */
 
     // Setup i2c
     let scl = gpiob.pb6.into_alternate_open_drain(&mut gpiob.crl);
@@ -84,9 +88,9 @@ fn main() -> ! {
     imu.set_gyro_full_scale(GyroFullScale::Deg2000).unwrap();
     imu.set_accel_full_scale(AccelFullScale::G16).unwrap();
 
-    // Note: additionally, wait about 15 seconds after turn on while not moving the sensor for self-calibration.
-    imu.calibrate_accel(255, &mut delay).unwrap();
-    imu.calibrate_gyro(255, &mut delay).unwrap();
+    // TODO: maybe additionally, wait about 15 seconds after turn on while not moving the sensor for self-calibration.
+    imu.calibrate_accel(128, &mut delay).unwrap();
+    imu.calibrate_gyro(128, &mut delay).unwrap();
 
     imu.initialize_dmp(&mut delay).unwrap();
 
@@ -120,7 +124,7 @@ fn main() -> ! {
         .pa_level(PALevel::Low)
         .ack_payloads_enabled(true)
         // We will use a payload size the size of our message
-        .payload_size(PayloadSize::Static(MESSAGE.len() as u8));
+        .payload_size(PayloadSize::Static(8u8));
 
     let chip_enable = gpioa.pa11.into_push_pull_output(&mut gpioa.crh);
 
@@ -152,10 +156,10 @@ fn main() -> ! {
 
     let max = pwm.get_max_duty();
 
-    pwm.set_duty(Channel::C1, max / 5);
-    pwm.set_duty(Channel::C2, max / 5);
-    pwm.set_duty(Channel::C3, max / 5);
-    pwm.set_duty(Channel::C4, max / 5);
+    pwm.set_duty(Channel::C1, 0);
+    pwm.set_duty(Channel::C2, 0);
+    pwm.set_duty(Channel::C3, 0);
+    pwm.set_duty(Channel::C4, 0);
 
     // Setup mixer variables.
     let throttle = 0;
@@ -180,35 +184,49 @@ fn main() -> ! {
     let bl_pitch = -0.25f32;
     let bl_yaw = 0.25f32;
 
-    rprintln!("Starting copter loop");
+    let mut desired = Interactive {
+        roll: 2048,
+        pitch: 2048,
+        ..Default::default()
+    };
+
+    defmt::println!("Starting copter loop");
     loop {
-        led.set_low();
+        //led.set_low();
         while imu.get_fifo_count().unwrap() < 28 {
             continue;
         }
         let ypr = {
-            let mut buf = [0; 28];
+            let mut buf = [0; 28]; // TODO move out of loop
             let buf = imu.read_fifo(&mut buf).unwrap();
 
             let quat = Quaternion::from_bytes(&buf[..16]).unwrap();
             YawPitchRoll::from(quat)
         };
-        led.toggle();
+        //led.toggle();
         let rates = imu.gyro().unwrap();
 
-        // TODO: get data from radio.
-        let desired: (f32, f32, f32) = { (0.0, 0.0, 0.0) };
+        defmt::println!("{}, {}", rates.x(), ypr.roll);
+
+        if nrf.data_available().unwrap() {
+            //led.set_high();
+            // TODO why 17?
+            let mut buffer = [0; /*core::mem::size_of::<Interactive>()*/ 17];
+            nrf.read(&mut buffer).unwrap();
+            desired = from_bytes(&buffer).unwrap();
+            defmt::println!("{:?}", desired);
+        }
 
         // Roll rate correction.
-        let desired_roll_rate = orientation_controller_roll.next(desired.0, ypr.roll * 10.0);
-        //rprintln!("{},    {}", ypr.roll * 10.0, desired_roll_rate);
+        let desired_roll_rate = orientation_controller_roll.next(desired.roll, ypr.roll * 10.0);
+        //defmt::println!("{},    {}", ypr.roll * 10.0, desired_roll_rate);
 
         let actual_roll_rate = rates.x();
 
         let roll_rate_correction = rate_controller_roll.next(desired_roll_rate, actual_roll_rate);
 
         // Pitch rate correction.
-        let desired_pitch_rate = orientation_controller_pitch.next(desired.1, ypr.pitch * 10.0);
+        let desired_pitch_rate = orientation_controller_pitch.next(desired.pitch, ypr.pitch * 10.0);
 
         let actual_pitch_rate = rates.y();
 
@@ -216,29 +234,20 @@ fn main() -> ! {
             rate_controller_pitch.next(desired_pitch_rate, actual_pitch_rate);
 
         // Yaw rate correction.
-        let desired_yaw_rate = orientation_controller_yaw.next(desired.2, ypr.yaw * 10.0);
+        let desired_yaw_rate = orientation_controller_yaw.next(desired.yaw, ypr.yaw * 10.0);
 
         let actual_yaw_rate = rates.z();
 
         let yaw_rate_correction = rate_controller_yaw.next(desired_yaw_rate, actual_yaw_rate);
 
         /*
-        rprintln!(
+        defmt::println!(
             "{:.2}, {:.2}, {:.2}",
             roll_rate_correction,
             pitch_rate_correction,
             yaw_rate_correction
         );
         */
-
-        if nrf.data_available().unwrap() {
-            led.set_high();
-            // TODO why 17?
-            let mut buffer = [0; /*core::mem::size_of::<Interactive>()*/ 17];
-            nrf.read(&mut buffer).unwrap();
-            let interactive: Interactive = from_bytes(&buffer).unwrap();
-            rprintln!("{:?}", interactive);
-        }
 
         let _front_right = (throttle as f32
             + fr_roll * roll_rate_correction
@@ -271,7 +280,7 @@ fn main() -> ! {
         let config = { state_machine::load_from_flash(&mut writer).unwrap_or_default() };
         let mut copter = Copter::from_config(config);
         let armed = copter.arm(&mut writer).unwrap();
-        rprintln!("{:?}", armed);
+        defmt::println!("{:?}", armed);
         copter = armed.disarm().unwrap();
         loop {
             continue;

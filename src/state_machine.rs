@@ -43,6 +43,8 @@ impl Copter<Disarmed> {
     }
 
     pub fn arm(self, writer: &mut FlashWriter) -> Result<Copter<Armed>, (Self, Error)> {
+        // Maybe persist data only when disarming.
+        // Actually, may be better to have an explicit command for persisting the config.
         let output: Vec<u8, 36> = to_vec(&self.config).unwrap();
 
         writer.erase(127 * 1024, 256).unwrap();
