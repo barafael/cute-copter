@@ -13,8 +13,13 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-
     steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/install@v0.1
+        with:
+          crate: flip-link
+          version: latest
+
       - uses: actions/checkout@v2
       - name: Install latest nightly
         uses: actions-rs/toolchain@v1
