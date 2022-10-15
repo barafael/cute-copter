@@ -8,8 +8,8 @@ I'm also working on the transmitter for this copter here: https://github.com/bar
 
 ~~As of August 2022, the copter is not available on AliExpress.
 If you find this MoebiusTech product somewhere, please let me know!~~
-As of October 15th, it's back :)
 
+As of October 15th, it's back in stock:
 https://de.aliexpress.com/item/4001108687090.html?gatewayAdapt=glo2deu&spm=a2g0o.order_list.0.0.21ef5c5f4uzTWV
 
 # Controller
@@ -25,6 +25,7 @@ STM32F103 LQFP-48
 * NRF24L01 on SPI2, (sck, miso, mosi): (PB13, PB14, PB15)
 * csn: PB12
 * chip_enable: PA11
+* irq: PA12
 
 # [TODO] UART
 
@@ -51,6 +52,7 @@ NRF radio and MPU6050 are confirmed working with this pinout, motors too.
 ![image](https://user-images.githubusercontent.com/6966738/195994577-16cb76ee-64b3-4423-8bd0-733fddfc836a.png)
 
 # Status
+
 - [x] IMU data
 -  [x] Driver needs some love; soldered probes to the I2C pullups to check what data is being exchanged between MCU and IMU
 -  [x] Take a deep look at: https://github.com/MoebiusTech/Stm32f103rct6
@@ -61,6 +63,17 @@ NRF radio and MPU6050 are confirmed working with this pinout, motors too.
 - [x] PWM for the motors
 -  [ ] DMA for PWM (not really needed is it?]
 - [x] Flash for persistence
+
+# TODO
+
+- [ ] Update Postcard to >v1.0
+- [ ] Update embedded-hal to >v1.0 when available
+- [ ] Scale radio and sensor values
+- [ ] Create board support crate with LEDs, radios, IMU, etc.
+- [ ] Improve IMU driver (more dmp calibration on start)
+- [x] Use defmt not just rtt
+- [x] find copter led pins
+- [ ] find remote led pins
 
 # IMU Traces
 
