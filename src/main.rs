@@ -8,6 +8,7 @@ use mpu6050_dmp::gyro::GyroFullScale;
 use mpu6050_dmp::sensor::Mpu6050;
 use nrf24_rs::config::{DataPipe, NrfConfig, PALevel, PayloadSize};
 use nrf24_rs::Nrf24l01;
+use pid_loop::PID;
 use postcard::from_bytes;
 use state_machine::Copter;
 use stm32f1xx_hal::flash::{FlashSize, SectorSize};
@@ -102,13 +103,13 @@ fn main() -> ! {
     let mut _copter = Copter::from_config(config);
 
     // Setup PID controllers
-    let mut orientation_controller_roll = pid_loop::PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
-    let mut orientation_controller_pitch = pid_loop::PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
-    let mut orientation_controller_yaw = pid_loop::PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
+    let mut orientation_controller_roll = PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
+    let mut orientation_controller_pitch = PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
+    let mut orientation_controller_yaw = PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
 
-    let mut rate_controller_roll = pid_loop::PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
-    let mut rate_controller_pitch = pid_loop::PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
-    let mut rate_controller_yaw = pid_loop::PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
+    let mut rate_controller_roll = PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
+    let mut rate_controller_pitch = PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
+    let mut rate_controller_yaw = PID::<f32, 1>::new(0.5, 0.5, 0.5, 0.0, 0.0);
 
     // Setup SPI
     let sck = gpiob.pb13.into_alternate_push_pull(&mut gpiob.crh);
@@ -124,13 +125,13 @@ fn main() -> ! {
         .pa_level(PALevel::Low)
         .ack_payloads_enabled(true)
         // We will use a payload size the size of our message
-        .payload_size(PayloadSize::Static(8u8));
+        .payload_size(PayloadSize::Static(MESSAGE.len() as u8));
 
     let chip_enable = gpioa.pa11.into_push_pull_output(&mut gpioa.crh);
 
     let mut nrf = Nrf24l01::new(spi, chip_enable, cs, &mut delay, config).unwrap();
     if !nrf.is_connected().unwrap() {
-        panic!("Chip is not connected.");
+        panic!("Radio is not connected.");
     }
 
     nrf.open_reading_pipe(DataPipe::DP0, b"Node1").unwrap();

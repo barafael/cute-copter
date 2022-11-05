@@ -1,0 +1,11 @@
+update postcard
+scale radio and sensor values
+improve driver (calibration on start)
+use defmt not rtt
+make a mixer module
+find remote led pins
+[x] find copter led pins
+
+are the numbers on flash page 64 calibration values? Or what?
+
+apm32f103 doesnt have spi3
